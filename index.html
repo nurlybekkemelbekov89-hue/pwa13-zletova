@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="kk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Шығындар есебі | Учёт расходов</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <meta name="theme-color" content="#1e3a8a">
+  <style>
+    * { box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
+    body { margin: 0; background: #f1f5f9; color: #0f172a; display: flex; justify-content: center; padding: 20px; }
+    .app { width: 100%; max-width: 480px; background: #fff; border-radius: 16px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    h1 { font-size: 1.25rem; margin: 0; color: #1e3a8a; }
+    .lang-btn { background: #e2e8f0; border: none; padding: 6px 12px; border-radius: 8px; font-weight: 600; cursor: pointer; }
+    .total-card { background: #1e3a8a; color: #fff; padding: 16px; border-radius: 12px; margin-bottom: 16px; }
+    .total-label { font-size: 0.85rem; opacity: 0.85; }
+    .total-amount { font-size: 1.75rem; font-weight: 700; margin-top: 4px; }
+    form { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+    input, select, button.add-btn { padding: 10px 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.95rem; }
+    button.add-btn { background: #2563eb; color: #fff; border: none; font-weight: 600; cursor: pointer; }
+    button.add-btn:hover { background: #1d4ed8; }
+    .error { color: #dc2626; font-size: 0.85rem; display: none; }
+    ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+    li { display: flex; justify-content: space-between; align-items: center; background: #f8fafc; padding: 10px 12px; border-radius: 8px; border: 1px solid #e2e8f0; }
+    .item-info { display: flex; flex-direction: column; gap: 2px; }
+    .item-title { font-weight: 600; }
+    .item-meta { font-size: 0.8rem; color: #64748b; }
+    .item-right { display: flex; align-items: center; gap: 10px; }
+    .item-sum { font-weight: 700; color: #0f172a; }
+    .del-btn { background: #fee2e2; color: #dc2626; border: none; border-radius: 6px; padding: 4px 8px; cursor: pointer; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="header">
+      <h1 id="title">Шығындар есебі</h1>
+      <button class="lang-btn" id="langBtn">RU</button>
+    </div>
+
+    <div class="total-card">
+      <div class="total-label" id="totalLabel">Жалпы сомасы:</div>
+      <div class="total-amount" id="totalAmount">0 ₸</div>
+    </div>
+
+    <form id="expenseForm">
+      <input type="text" id="nameInput" placeholder="Шығын атауы (мысалы, Такси)">
+      <select id="categoryInput">
+        <option value="transport">Көлік / Транспорт</option>
+        <option value="office">Кеңсе тауарлары / Канцелярия</option>
+        <option value="meals">Тамақтану / Питание</option>
+        <option value="other">Басқа / Прочее</option>
+      </select>
+      <input type="number" id="amountInput" placeholder="Сомасы (₸)" step="any">
+      <div class="error" id="errorMsg">Дұрыс атау мен оң соманы енгізіңіз!</div>
+      <button type="submit" class="add-btn" id="addBtn">Қосу</button>
+    </form>
+
+    <ul id="expenseList"></ul>
+  </div>
+
+  <script>
+    const dict = {
+      kk: {
+        title: 'Шығындар есебі',
+        btn: 'RU',
+        total: 'Жалпы сомасы:',
+        namePh: 'Шығын атауы (мысалы, Такси)',
+        amountPh: 'Сомасы (₸)',
+        add: 'Қосу',
+        err: 'Дұрыс атау мен оң соманы енгізіңіз!',
+        cats: { transport: 'Көлік', office: 'Кеңсе', meals: 'Тамақтану', other: 'Басқа' }
+      },
+      ru: {
+        title: 'Учёт расходов',
+        btn: 'KK',
+        total: 'Общая сумма:',
+        namePh: 'Название расхода (напр. Такси)',
+        amountPh: 'Сумма (₸)',
+        add: 'Добавить',
+        err: 'Введите корректное название и положительную сумму!',
+        cats: { transport: 'Транспорт', office: 'Канцелярия', meals: 'Питание', other: 'Прочее' }
+      }
+    };
+
+    let lang = 'kk';
+    let expenses = JSON.parse(localStorage.getItem('audit_expenses') || '[]');
+
+    const elTitle = document.getElementById('title');
+    const elLangBtn = document.getElementById('langBtn');
+    const elTotalLabel = document.getElementById('totalLabel');
+    const elTotalAmount = document.getElementById('totalAmount');
+    const elName = document.getElementById('nameInput');
+    const elCat = document.getElementById('categoryInput');
+    const elAmount = document.getElementById('amountInput');
+    const elAddBtn = document.getElementById('addBtn');
+    const elErr = document.getElementById('errorMsg');
+    const elList = document.getElementById('expenseList');
+
+    function updateTexts() {
+      const t = dict[lang];
+      elTitle.textContent = t.title;
+      elLangBtn.textContent = t.btn;
+      elTotalLabel.textContent = t.total;
+      elName.placeholder = t.namePh;
+      elAmount.placeholder = t.amountPh;
+      elAddBtn.textContent = t.add;
+      elErr.textContent = t.err;
+      render();
+    }
+
+    function render() {
+      elList.innerHTML = '';
+      let sum = 0;
+      expenses.forEach((item, index) => {
+        sum += item.amount;
+        const li = document.createElement('li');
+
+        const info = document.createElement('div');
+        info.className = 'item-info';
+
+        const titleSpan = document.createElement('span');
+        titleSpan.className = 'item-title';
+        titleSpan.textContent = item.name;
+
+        const metaSpan = document.createElement('span');
+        metaSpan.className = 'item-meta';
+        metaSpan.textContent = `${dict[lang].cats[item.category]} • ${item.date}`;
+
+        info.appendChild(titleSpan);
+        info.appendChild(metaSpan);
+
+        const right = document.createElement('div');
+        right.className = 'item-right';
+
+        const sumSpan = document.createElement('span');
+        sumSpan.className = 'item-sum';
+        sumSpan.textContent = `${item.amount.toLocaleString()} ₸`;
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'del-btn';
+        delBtn.textContent = '✕';
+        delBtn.onclick = () => {
+          expenses.splice(index, 1);
+          saveAndRender();
+        };
+
+        right.appendChild(sumSpan);
+        right.appendChild(delBtn);
+
+        li.appendChild(info);
+        li.appendChild(right);
+        elList.appendChild(li);
+      });
+      elTotalAmount.textContent = `${sum.toLocaleString()} ₸`;
+    }
+
+    function saveAndRender() {
+      localStorage.setItem('audit_expenses', JSON.stringify(expenses));
+      render();
+    }
+
+    document.getElementById('expenseForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = elName.value.trim();
+      const amount = parseFloat(elAmount.value);
+      if (!name || isNaN(amount) || amount <= 0) {
+        elErr.style.display = 'block';
+        return;
+      }
+      elErr.style.display = 'none';
+      const now = new Date().toLocaleDateString('ru-RU');
+      expenses.unshift({ name, category: elCat.value, amount, date: now });
+      elName.value = '';
+      elAmount.value = '';
+      saveAndRender();
+    });
+
+    elLangBtn.addEventListener('click', () => {
+      lang = lang === 'kk' ? 'ru' : 'kk';
+      updateTexts();
+    });
+
+    updateTexts();
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js');
+    }
+  </script>
+</body>
+</html>
